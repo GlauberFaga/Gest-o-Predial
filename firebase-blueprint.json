@@ -1,0 +1,203 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Empresa/cliente cadastrado no sistema multi-empresa.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "cnpj": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 150 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "active": { "type": "boolean" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "active", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Usuário do sistema vinculado a uma ou mais empresas.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["master", "admin", "technician", "requester", "viewer"] },
+        "name": { "type": "string", "maxLength": 150 },
+        "companyIds": { "type": "array" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role", "name", "companyIds", "createdAt"]
+    },
+    "Building": {
+      "title": "Building",
+      "description": "Prédio vinculado a uma empresa.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "address": { "type": "string", "maxLength": 250 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "name", "createdAt"]
+    },
+    "Floor": {
+      "title": "Floor",
+      "description": "Andar de um prédio vinculado a uma empresa.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "buildingId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "buildingId", "name", "createdAt"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Sala ou ambiente de um andar vinculado a uma empresa.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "buildingId": { "type": "string", "maxLength": 128 },
+        "floorId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "buildingId", "floorId", "name", "createdAt"]
+    },
+    "Item": {
+      "title": "Item",
+      "description": "Item/equipamento de uma sala vinculado a uma empresa.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "buildingId": { "type": "string", "maxLength": 128 },
+        "floorId": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "type": { "type": "string", "enum": ["porta", "lâmpada", "extintor", "ar-condicionado", "outro"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "buildingId", "floorId", "roomId", "name", "type", "createdAt"]
+    },
+    "DocumentRecord": {
+      "title": "DocumentRecord",
+      "description": "Certidão, alvará ou manutenção periódica vinculada a uma empresa.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "issueDate": { "type": "string", "format": "date-time" },
+        "expirationDate": { "type": "string", "format": "date-time" },
+        "warningDays": { "type": "number" },
+        "status": { "type": "string", "enum": ["válido", "próximo", "vencido"] },
+        "targetType": { "type": "string", "enum": ["building", "floor", "room", "item"] },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "buildingId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "name", "issueDate", "expirationDate", "warningDays", "status", "targetType", "targetId", "createdAt"]
+    },
+    "Ticket": {
+      "title": "Ticket",
+      "description": "Chamado de manutenção vinculado a uma empresa.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "itemId": { "type": "string", "maxLength": 128 },
+        "buildingId": { "type": "string", "maxLength": 128 },
+        "floorId": { "type": "string", "maxLength": 128 },
+        "roomId": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "status": { "type": "string", "enum": ["Aberto", "Em Andamento", "Aguardando Peça", "Concluído"] },
+        "initialPhotoUrl": { "type": "string" },
+        "finalPhotoUrl": { "type": "string" },
+        "assignedTo": { "type": "string", "maxLength": 128 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "buildingId", "description", "status", "createdBy", "createdAt"]
+    },
+    "TicketComment": {
+      "title": "TicketComment",
+      "description": "Comentário registrado em um chamado de manutenção.",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "ticketId": { "type": "string", "maxLength": 128 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "authorId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 150 },
+        "authorEmail": { "type": "string", "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "ticketId", "text", "authorId", "authorName", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Registro imutável de auditoria do sistema (inclusão, alteração, exclusão).",
+      "type": "object",
+      "properties": {
+        "companyId": { "type": "string", "maxLength": 128 },
+        "companyName": { "type": "string", "maxLength": 150 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 150 },
+        "userEmail": { "type": "string", "maxLength": 150 },
+        "action": { "type": "string", "enum": ["inclusão", "alteração", "exclusão"] },
+        "entity": { "type": "string", "enum": ["empresa", "usuário", "prédio", "andar", "sala", "item", "vencimento", "chamado", "comentário"] },
+        "entityId": { "type": "string", "maxLength": 128 },
+        "entityName": { "type": "string", "maxLength": 200 },
+        "details": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "reason": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["companyId", "userId", "userName", "userEmail", "action", "entity", "entityId", "details", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": { "$ref": "#/entities/Company" },
+      "description": "Cadastro de empresas clientes"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Perfis de usuários e vínculos com empresas"
+    },
+    "/buildings/{buildingId}": {
+      "schema": { "$ref": "#/entities/Building" },
+      "description": "Prédios por empresa"
+    },
+    "/floors/{floorId}": {
+      "schema": { "$ref": "#/entities/Floor" },
+      "description": "Andares por empresa"
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/Room" },
+      "description": "Salas por empresa"
+    },
+    "/items/{itemId}": {
+      "schema": { "$ref": "#/entities/Item" },
+      "description": "Itens e equipamentos por empresa"
+    },
+    "/documents/{documentId}": {
+      "schema": { "$ref": "#/entities/DocumentRecord" },
+      "description": "Vencimentos e certidões por empresa"
+    },
+    "/tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/Ticket" },
+      "description": "Chamados de manutenção por empresa"
+    },
+    "/tickets/{ticketId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/TicketComment" },
+      "description": "Comentários vinculados a um chamado"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Trilha de auditoria imutável de ações do sistema"
+    }
+  }
+}

@@ -1,0 +1,277 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userExists() {
+      return isSignedIn() && exists(userPath());
+    }
+
+    function getUserData() {
+      return get(userPath()).data;
+    }
+
+    function isActiveUser() {
+      return userExists() && getUserData().get('active', true) == true;
+    }
+
+    function isBootstrappedMaster() {
+      return isSignedIn() &&
+        request.auth.token.email == 'glauber.faga@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isMaster() {
+      return isBootstrappedMaster() || (isActiveUser() && getUserData().role == 'master');
+    }
+
+    function userCompanyIds() {
+      return getUserData().get('companyIds', []);
+    }
+
+    function belongsToCompany(companyId) {
+      return isSignedIn() && (
+        isMaster() ||
+        (isActiveUser() && companyId is string && companyId in userCompanyIds())
+      );
+    }
+
+    function isCompanyAdmin(companyId) {
+      return isSignedIn() && (
+        isMaster() ||
+        (isActiveUser() && getUserData().role == 'admin' && companyId is string && companyId in userCompanyIds())
+      );
+    }
+
+    function isCompanyTechnician(companyId) {
+      return isSignedIn() && isActiveUser() && getUserData().role == 'technician' && companyId is string && companyId in userCompanyIds();
+    }
+
+    function isCompanyRequester(companyId) {
+      return isSignedIn() && isActiveUser() && getUserData().role == 'requester' && companyId is string && companyId in userCompanyIds();
+    }
+
+    // Companies (Empresas / Clientes)
+    match /companies/{companyId} {
+      allow read: if isSignedIn() && (isMaster() || (isActiveUser() && companyId in userCompanyIds()));
+      allow create: if isMaster()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150
+        && request.resource.data.active is bool;
+      allow update: if (
+        isMaster() ||
+        (isCompanyAdmin(companyId) && request.resource.data.active == resource.data.active)
+      )
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150
+        && request.resource.data.active is bool;
+      allow delete: if isMaster();
+    }
+
+    // Users (Perfis e vínculos com empresas)
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isMaster() ||
+        (
+          isActiveUser() &&
+          getUserData().role == 'admin' &&
+          userCompanyIds().size() > 0 &&
+          resource.data.companyIds is list &&
+          resource.data.companyIds.hasAny(userCompanyIds())
+        )
+      );
+
+      allow create: if isSignedIn() && (
+        isMaster() ||
+        (
+          request.auth.uid == userId &&
+          request.resource.data.role == 'requester' &&
+          request.resource.data.get('companyIds', []) is list &&
+          request.resource.data.get('companyIds', []).size() == 0
+        ) ||
+        (
+          isActiveUser() &&
+          getUserData().role == 'admin' &&
+          request.resource.data.role in ['admin', 'technician', 'requester', 'viewer'] &&
+          request.resource.data.companyIds is list &&
+          request.resource.data.companyIds.size() > 0 &&
+          request.resource.data.companyIds.hasOnly(userCompanyIds())
+        )
+      );
+
+      allow update: if isSignedIn() && (
+        isMaster() ||
+        (
+          isActiveUser() &&
+          getUserData().role == 'admin' &&
+          resource.data.role != 'master' &&
+          request.resource.data.role in ['admin', 'technician', 'requester', 'viewer'] &&
+          userCompanyIds().size() > 0 &&
+          resource.data.companyIds is list &&
+          resource.data.companyIds.hasAny(userCompanyIds()) &&
+          request.resource.data.companyIds is list &&
+          (
+            request.resource.data.companyIds == resource.data.companyIds ||
+            request.resource.data.companyIds.hasOnly(userCompanyIds())
+          )
+        ) ||
+        (
+          request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+        )
+      );
+
+      allow delete: if isSignedIn() && request.auth.uid != userId && (
+        isMaster() ||
+        (
+          isActiveUser() &&
+          getUserData().role == 'admin' &&
+          resource.data.role != 'master' &&
+          userCompanyIds().size() > 0 &&
+          resource.data.companyIds is list &&
+          resource.data.companyIds.hasAny(userCompanyIds()) &&
+          resource.data.companyIds.hasOnly(userCompanyIds())
+        )
+      );
+    }
+
+    // Multi-company isolated collections
+    match /buildings/{buildingId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if isCompanyAdmin(request.resource.data.companyId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow update: if isCompanyAdmin(resource.data.companyId)
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow delete: if isCompanyAdmin(resource.data.companyId);
+    }
+
+    match /floors/{floorId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if isCompanyAdmin(request.resource.data.companyId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow update: if isCompanyAdmin(resource.data.companyId)
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow delete: if isCompanyAdmin(resource.data.companyId);
+    }
+
+    match /rooms/{roomId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if isCompanyAdmin(request.resource.data.companyId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow update: if isCompanyAdmin(resource.data.companyId)
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow delete: if isCompanyAdmin(resource.data.companyId);
+    }
+
+    match /items/{itemId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if isCompanyAdmin(request.resource.data.companyId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow update: if isCompanyAdmin(resource.data.companyId)
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150;
+      allow delete: if isCompanyAdmin(resource.data.companyId);
+    }
+
+    match /documents/{documentId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if isCompanyAdmin(request.resource.data.companyId)
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200;
+      allow update: if isCompanyAdmin(resource.data.companyId)
+        && request.resource.data.companyId == resource.data.companyId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200;
+      allow delete: if isCompanyAdmin(resource.data.companyId);
+    }
+
+    match /tickets/{ticketId} {
+      allow read: if belongsToCompany(resource.data.companyId);
+      allow create: if (
+          isCompanyAdmin(request.resource.data.companyId) ||
+          isCompanyTechnician(request.resource.data.companyId) ||
+          isCompanyRequester(request.resource.data.companyId)
+        )
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 2000;
+      allow update: if request.resource.data.companyId == resource.data.companyId && (
+        isCompanyAdmin(resource.data.companyId) ||
+        isCompanyTechnician(resource.data.companyId) ||
+        (isCompanyRequester(resource.data.companyId) && resource.data.createdBy == request.auth.uid)
+      );
+      allow delete: if isCompanyAdmin(resource.data.companyId)
+        || isCompanyTechnician(resource.data.companyId)
+        || (isCompanyRequester(resource.data.companyId) && resource.data.createdBy == request.auth.uid);
+
+      match /comments/{commentId} {
+        allow read: if belongsToCompany(resource.data.companyId);
+        allow create: if (
+            isCompanyAdmin(request.resource.data.companyId) ||
+            isCompanyTechnician(request.resource.data.companyId) ||
+            isCompanyRequester(request.resource.data.companyId)
+          )
+          && request.resource.data.ticketId == ticketId
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000;
+        allow delete: if isCompanyAdmin(resource.data.companyId)
+          || isCompanyTechnician(resource.data.companyId)
+          || resource.data.authorId == request.auth.uid
+          || (isCompanyRequester(resource.data.companyId) && get(/databases/$(database)/documents/tickets/$(ticketId)).data.createdBy == request.auth.uid);
+      }
+    }
+
+    // Immutable Audit Logs (visível apenas para Admin da empresa e Master)
+    match /audit_logs/{logId} {
+      allow read: if isMaster() || isCompanyAdmin(resource.data.companyId);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && (isMaster() || belongsToCompany(request.resource.data.companyId))
+        && request.resource.data.action in ['inclusão', 'alteração', 'exclusão']
+        && request.resource.data.entity in ['empresa', 'usuário', 'prédio', 'andar', 'sala', 'item', 'vencimento', 'chamado', 'comentário']
+        && request.resource.data.details is string
+        && request.resource.data.details.size() > 0
+        && request.resource.data.details.size() <= 2000;
+      allow update, delete: if false;
+    }
+  }
+}

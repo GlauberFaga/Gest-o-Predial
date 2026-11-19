@@ -1,0 +1,6 @@
+{
+  "name": "Gestão Predial",
+  "description": "Sistema multi-empresa de gestão predial, manutenções e controle de vencimentos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
